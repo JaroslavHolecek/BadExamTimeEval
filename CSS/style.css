@@ -1,0 +1,76 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f4f4f9;
+}
+
+.container {
+    text-align: center;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    width: 600px;
+}
+
+h1 {
+    color: #333;
+}
+
+.exam-setup input,
+.exam-setup button {
+    margin: 5px;
+    padding: 10px;
+}
+
+.exam-controls button {
+    padding: 10px 20px;
+    margin: 5px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.exam-controls button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.buttons {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 20px;
+    transition: box-shadow 1s ease-out, transform 1s ease-out; /* Smooth transition for shadow and scaling */
+}
+
+.buttons button {
+    padding: 15px;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.buttons button:hover {
+    background-color: #0056b3;
+}
+
+.buttons button:active {
+    box-shadow: 0 0 15px rgba(0, 123, 255, 0.5); /* Immediate shadow when clicked */
+    transform: scale(0.98);
+}
+
+.exam-details {
+    margin-top: 30px;
+}
+
+canvas {
+    margin-top: 20px;
+    width: 100%;
+}
