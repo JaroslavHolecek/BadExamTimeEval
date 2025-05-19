@@ -1,16 +1,19 @@
-/*  Interval is part of Exam, that describe duration (start and end) of part of talk and value assigned to this part. String description of part is possible.
+/*  Interval is part of Exam, that describe duration (start and end) of part of talk and value assigned to this part.
+    Interval can be marked as (in)valid, wich allows to filter out invalid intervals. For example not acount interval where examiner asked question.
+    String description of part is possible.
     Based on duration and value, score of interval is calculated.
 */
 class Interval {
-    constructor(start, end, value, description="") {
+    constructor(start, end, value, valid=true, description="") {
         if (!start || !end || !value) {
-            throw new Error("Start, end, and value must be provided");
+            throw new Error("Start, end and value must be provided");
         }
-        
+      
         this.start = start;
         this.end = end;
-
-        this.value = parseFloat(value);
+        this.value = value;
+        
+        this.valid = valid;
         this.description = description;
     }
 
@@ -20,12 +23,14 @@ class Interval {
      */
     set start(value) {
         const newStart = new Date(value);
+        if (isNaN(newStart.getTime())){
+            throw new Error("Start time must be a valid date");
+        }
         if (this.end && newStart >= this.end) {
             throw new Error("Start time must be before end time");
         }
         this._start = newStart;
     }
-
     get start() {
         return this._start;
     }
@@ -36,22 +41,52 @@ class Interval {
      */
     set end(value) {
         const newEnd = new Date(value);
+        if (isNaN(newEnd.getTime())){
+            throw new Error("End time must be a valid date");
+        }
         if (this.start && newEnd <= this.start) {
             throw new Error("End time must be after start time");
         }
         this._end = newEnd;
     }
-
     get end() {
         return this._end;
     }
 
+    /**
+     * @param {number} value 
+     * @throws {Error} if value is not a number or undefined
+     */
+    set value(value) {
+        if (typeof value !== "number") {
+            throw new Error("Value must be a number");
+        }
+        this._value = value;
+    }
+    get value() {
+        return this._value;
+    }
+
+    /**
+     * @param {boolean} valid
+     * @throws {Error} if valid is not a boolean
+     */
+    set valid(value) {
+        if (typeof value !== "boolean") {
+            throw new Error("Valid must be a boolean");
+        }
+        this._valid = value;
+    }
+    get valid() {
+        return this._valid;
+    }
+    
     /** Shift the interval (both start and end) by a certain amount of time
      *  @param {number} ms - number of milliseconds to shift the interval
      */
     shift(value) {
         if (typeof value !== "number") {
-            throw new Error("Value must be a number");
+            throw new Error("Value for shift must be a number");
         }
 
         if (value === 0) {
@@ -65,7 +100,6 @@ class Interval {
             this.end = this.end.getTime() + value;
             this.start = this.start.getTime() + value;
         }
-
     }
 
     getDuration_ms() {
@@ -84,12 +118,13 @@ class Interval {
             start: this.start,
             end: this.end,
             value: this.value,
-            description: this.description
+            valid: this.valid,
+            description: this.description,
         };
     }
 
     static fromObject(obj) {
-        return new Interval(obj.start, obj.end, obj.value, obj.description);
+        return new Interval(obj.start, obj.end, obj.value, obj.valid, obj.description);
     }
 
     static fromJSON(json) {
@@ -98,54 +133,82 @@ class Interval {
 }
 
 class Exam {
-    constructor(id, topic, examDate, goalDuration_ms, description="", closed=false) {
-        if (!id || !topic || !examDate || !goalDuration_ms) {
-            throw new Error("Id, topic, exam date, and goal duration must be provided");
-        }
-
-        if (typeof id !== "number") {
-            throw new Error("Id must be a number");
-        }
-
-        if (typeof topic !== "string") {
-            throw new Error("Topic must be a string");
-        }
-
-        if (typeof goalDuration_ms !== "number") {
-            throw new Error("Goal duration must be a number");
-        }
-
-        const dateObj = new Date(examDate);
-        if (isNaN(dateObj.getTime())) {
-            throw new Error("examDate must be a valid date or date string");
+    constructor(id, topic, examDate, student=undefined, goalDuration_ms=undefined, description="") {
+        if (!id || !topic || !examDate) {
+            throw new Error("Id, topic and exam date must be provided");
         }
 
         this.id = id;
         this.topic = topic;
+        this.examDate = examDate;     
+        this.student = student;
         this.description = description;
-        this.examDate = dateObj;
         this.goalDuration_ms = goalDuration_ms;
+      
         this._intervals = [];
 
-        this._closed = closed;        
         this._running = false;
         this._lastTime = undefined;
     }
 
+    
+    get id() {
+        return this._id;
+    }
+    set id(value) {
+        if (typeof value !== "number"){
+            throw new Error("Id must be number");
+        }
+        this._id = value;
+    }
+
+    get topic() {
+        return this._topic;
+    }
+    set topic(value) {
+        if (typeof value !== "string" || value.trim() === ""){
+            throw new Error("Topic must be a non-empty string");
+        }
+        this._topic = value.trim();
+    }
+
+    get examDate() {
+        return this._examDate;
+    }
+    set examDate(value) {
+        var date = new Date(value);
+        if (isNaN(date.getTime())){
+            throw new Error("Exam date must be a valid date");
+        }
+        this._examDate = date;
+    }
+
+    get student() {
+        return this._student;
+    }
+    set student(value) {
+        if (!(value === undefined || value instanceof Student)) {
+            throw new Error("Student must be an instance of Student or undefined");
+        }
+        this._student = value;
+    }
+
+    get goalDuration_ms() {
+        return this._goalDuration_ms;
+    }
+    set goalDuration_ms(value) {
+        if (!(value === undefined || typeof value === "number") ||
+             (typeof value === "number" && value < 0)) {
+            throw new Error("Goal duration must be a positive number or undefined");
+        }
+        this._goalDuration_ms = value;
+    }
 
     /*  
         *****************************
         >>> State query functions <<<
         *****************************    
     */
-
-    /**
-     * Resolve whether the exam has been closed
-     * @returns {boolean}
-     */
-    closed() {
-        return this._closed;
-    }
 
     /**
      * Resolve whether the exam is running
@@ -163,22 +226,6 @@ class Exam {
         return this.running() || this._intervals.length > 0;
     }
 
-    /**
-     * Resolve whether the exam has been started and has not been closed
-     * @returns {boolean}
-     */
-    active() {
-        return this.started() && !this.closed();
-    }
-
-    /**
-     * Resolve whether the exam has been paused
-     * @returns {boolean}
-     */
-    paused() {
-        return !this.running() && this.active();
-    }
-
     /*  
         **********************************
         >>> State manipulate functions <<<
@@ -186,33 +233,23 @@ class Exam {
     */
 
     start() {
-        if (this.started()) return;
-
-        this._running = true;
-        this._lastTime = Date.now();
-    }
-
-    close() {
-        if (!this.active()) return;
-
-        this._closed = true;
-        this._running = false;
-        this._lastTime = undefined;
-
-    }
-
-    pause() {
-        if (this.paused()) return;
-
-        this._running = false;
-        this._lastTime = undefined;
-    }
-
-    resume() {
         if (this.running()) return;
 
         this._running = true;
         this._lastTime = Date.now();
+    }
+
+    stop() {
+        if (!this.running()) return;
+
+        this._running = false;
+        this._lastTime = undefined;
+    }
+
+    clear() {
+        this._running = false;
+        this._lastTime = undefined;
+        this._intervals = [];
     }
 
     /*  
@@ -221,28 +258,59 @@ class Exam {
         *************************
     */
 
+    getIntervals() {
+        return this._intervals;
+    }
+
+    getValidIntervals() {
+        return this._intervals.filter(interval => interval.valid);
+    }
+
+
     totalTime_ms(){
-        return this._intervals.reduce((acc, interval) => acc + interval.getDuration_ms(), 0);
+        return this.getIntervals()
+                .reduce((acc, interval) => acc + interval.getDuration_ms(), 0);
     }
 
-    totalScore_ms(){
-        return this._intervals.reduce((acc, interval) => acc + interval.getScore_ms(), 0);
+    totalValidTime_ms(){
+        return this.getValidIntervals()
+                .reduce((acc, interval) => acc + interval.getDuration_ms(), 0);
     }
 
-    recordInterval(value, description="") {
+    totalValidScore_ms(){
+        return this.getValidIntervals()
+                .reduce((acc, interval) => acc + interval.getScore_ms(), 0);
+    }
+
+    recordInterval(value, valid, description="") {
         if (!this.running()) return;
 
         const currentTime = Date.now();
         if (this._lastTime) {
-            this._intervals.push(new Interval(this._lastTime, currentTime, value, description));
+            this._intervals.push(
+                new Interval(this._lastTime, currentTime, value, valid, description)
+            );
         }
         this._lastTime = currentTime;
     }
 
-    getGraphData() {
-        return this._intervals.map(interval => ({
+    getGraphData(include_invalid=false) {
+        var intervals;
+        if (include_invalid) {
+            intervals = this.getIntervals();
+        } else {
+            intervals = this.getValidIntervals();
+        }
+
+        if (intervals.length === 0) {
+            return [];
+        }
+
+        return intervals.map(interval => ({
             duration: interval.getDuration_ms(),
-            value: interval.value
+            value: interval.value,
+            valid: interval.valid,
+            description: interval.description,
         }));
     }
 
@@ -250,22 +318,30 @@ class Exam {
         return {
             id: this.id,
             topic: this.topic,
-            description: this.description,
             examDate: this.examDate,
+            student_id: this.student.id,
             goalDuration_ms: this.goalDuration_ms,
-            closed: this._closed,
-            intervals: this._intervals.map(interval => interval.toJSON())
+            description: this.description,
+            intervals: this._intervals.map(interval => interval.toJSON()),
         };
     }
 
-    static fromObject(obj) {
-        const exam = new Exam(obj.id, obj.topic, obj.examDate, obj.goalDuration_ms, obj.description, obj.closed);
+    static fromObject(obj, students) {
+        const exam = new Exam(
+            obj.id,
+            obj.topic,
+            obj.examDate,
+            students.find(student => student.id === obj.student_id),
+            obj.goalDuration_ms,
+            obj.description
+        );
         exam._intervals = obj.intervals.map(interval => Interval.fromObject(interval));
         return exam;
+
     }
 
-    static fromJSON(json) {
-        return Exam.fromObject(JSON.parse(json));
+    static fromJSON(json, students) {
+        return Exam.fromObject(JSON.parse(json), students);
     }
 }
 
@@ -293,60 +369,35 @@ class Group{
     constructor(id, name){
         this.id = id;
         this.name = name;
+        this.students = [];
+        this.exams = [];
     }
 
     toJSON(){
         return {
             id: this.id,
             name: this.name,
+            students_ids: this.students.map(student => student.id),
+            exams: this.exams.map(exam => exam.toJSON())
         };
     }
 
-    static fromObject(obj){
-        const group = new Group(obj.id, obj.name);        
+    static fromObject(obj, students){
+        const group = new Group(obj.id, obj.name);
+        group.students = obj.students_ids.map(student_id => {
+            const student = students.find(student => student.id === student_id);
+            if (!student) {
+                throw new Error(`Student with id ${student_id} not found`);
+            }
+            return student;
+        });
+        group.exams = obj.exams.map(exam => Exam.fromObject(exam, students));
         return group;
     }
 
-    static fromJSON(json){
-        return Group.fromObject(JSON.parse(json));
+    static fromJSON(json, students){
+        return Group.fromObject(JSON.parse(json), students);
     }
-}
-
-/* Wrapper for Exam with addition of assigned student an group */
-class AssignedExam{
-    constructor(exam, student=undefined, group=undefined){
-        this.exam = exam;
-        this.student = student;
-        this.group = group;
-    }
-
-    toJSON(){
-        return {
-            exam_id: this.exam.id,
-            student_id: this.student?.id,
-            group_id: this.group?.id
-        };
-    }
-
-    static fromObject(obj, exams, students, groups){
-        const exam = exams.find(exam => exam.id === obj.exam_id);
-        
-        var student = undefined;
-        if (obj.student_id){
-            student = students.find(student => student.id === obj.student_id);
-        }
-
-        var group = undefined;
-        if (obj.group_id){
-            group = groups.find(group => group.id === obj.group_id);   
-        }   
-
-        return new AssignedExam(exam, student, group);
-    }
-
-    static fromJSON(json, exams, students, groups){
-        return AssignedExam.fromObject(JSON.parse(json), exams, students, groups);
-    }            
 }
 
 class Context {
@@ -354,8 +405,9 @@ class Context {
         this.name = name;
         this.students = [];
         this.groups = [];
-        this.exams = [];
-        this.assignedExams = [];
+        this.freeExams = [];
+
+        /* TODO: */
 
         this._actualAssignedExam = undefined;
         this._actualGroup = undefined;
